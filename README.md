@@ -1,6 +1,8 @@
 <div align="center">
 
 # Stocks Data Storing and Analyzing
+
+</div>
 In this project, we want to get some insight of the labor market in a certain period of time from crawled data of a website.
 Crawled data is first uploaded to HDFS cluster. At the same time, this data is uploaded to the elasticsearch cluster (for visualization in Kibana).
 
