@@ -9,6 +9,12 @@ from concurrent import futures
 from elasticsearch import Elasticsearch
 import argparse
 
+
+from time import sleep
+from json import dumps
+from kafka import KafkaProducer
+
+
 parser = argparse.ArgumentParser()
 parser.add_argument('-start_date',"--start_date", type=str, help="date start to crawl")
 parser.add_argument('-end_date', "--end_date", type=str, help="date end to crawl")
@@ -110,11 +116,15 @@ def get_data(code_item: str, date: datetime):
         transaction_in_day=transaction_in_day
     )
 
-
+producer = KafkaProducer(
+    bootstrap_servers=['kafka:9092'],
+    value_serializer=lambda m: json.dumps(m).encode('utf-8')
+)
 
 client = InsecureClient(hdfs_client_url, user = 'hadoop')
 with client.read(input_stock_code, delimiter=",", encoding='utf-8') as reader:
     list_stock_code=[code for code in reader]
+
 
 es = Elasticsearch(hosts=elas_host)
 for day in range(days_delta):
@@ -128,8 +138,9 @@ for day in range(days_delta):
             obj = get_data(stock_code, date)
             serveral_empty_stock_code = 0
             # threading.Thread(target=write_hdfs, args=(f"/user/hadoop/crawl_file/{stock_code}_{date.strftime('%d-%m-%Y')}", json.dumps(obj.__dict__))).start()
-            client.write(f"/hadoop/crawl_file/{stock_code}_{date.strftime('%d-%m-%Y')}.json", data = f"{json.dumps(obj.__dict__)}\n", encoding = 'utf-8', overwrite=True)
-            es.update(index="chungkhoan", id=f"{stock_code}_{date.strftime('%d-%m-%Y')}", doc=json.loads(json.dumps(obj.__dict__)), doc_as_upsert=True)
+            # client.write(f"/hadoop/crawl_file/{stock_code}_{date.strftime('%d-%m-%Y')}.json", data = f"{json.dumps(obj.__dict__)}\n", encoding = 'utf-8', overwrite=True)
+            # es.update(index="chungkhoan", id=f"{stock_code}_{date.strftime('%d-%m-%Y')}", doc=json.loads(json.dumps(obj.__dict__)), doc_as_upsert=True)
+            producer.send('stock-data', value=obj.__dict__)
         except EmptyCrawlData as e:
             serveral_empty_stock_code += 1
             print(f"error: {e}, {stock_code} {date}")
